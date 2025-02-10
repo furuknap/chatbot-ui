@@ -1,5 +1,22 @@
 <template>
   <div class="chat-container">
+    <div class="model-selection">
+      <select v-model="selectedProvider" class="provider-select">
+        <option value="claude">Claude</option>
+        <option value="ollama">Ollama</option>
+      </select>
+      <select v-if="selectedProvider === 'ollama'" 
+              v-model="selectedModel" 
+              class="model-select"
+              :disabled="loadingModels">
+        <option value="" disabled>Select a model</option>
+        <option v-for="model in ollamaModels" 
+                :key="model.name" 
+                :value="model.name">
+          {{ model.name }}
+        </option>
+      </select>
+    </div>
     <div class="chat-history" ref="chatHistory">
       <div v-for="(message, index) in messages" :key="index" 
            :class="['message', message.role]">
@@ -20,6 +37,7 @@
 
 <script>
 import { sendMessage as claudeApi } from '../api/claude.js';
+import { sendMessage as ollamaApi, listModels } from '../api/ollama.js';
 
 export default {
   name: 'ChatBot',
@@ -27,10 +45,39 @@ export default {
     return {
       messages: [],
       userInput: '',
-      isLoading: false
+      isLoading: false,
+      selectedProvider: 'claude',
+      selectedModel: '',
+      ollamaModels: [],
+      loadingModels: false
     };
   },
+  mounted() {
+    if (this.selectedProvider === 'ollama') {
+      this.fetchOllamaModels();
+    }
+  },
+  watch: {
+    selectedProvider(newValue) {
+      if (newValue === 'ollama') {
+        this.fetchOllamaModels();
+      }
+    }
+  },
   methods: {
+    async fetchOllamaModels() {
+      this.loadingModels = true;
+      try {
+        this.ollamaModels = await listModels();
+        if (this.ollamaModels.length > 0) {
+          this.selectedModel = this.ollamaModels[0].name;
+        }
+      } catch (error) {
+        console.error('Error fetching Ollama models:', error);
+      } finally {
+        this.loadingModels = false;
+      }
+    },
     async sendMessage() {
       if (!this.userInput.trim() || this.isLoading) return;
       
@@ -44,8 +91,16 @@ export default {
       this.isLoading = true;
 
       try {
-        // Call Claude API
-        const response = await claudeApi(this.messages);
+        // Call appropriate API based on selected provider
+        let response;
+        if (this.selectedProvider === 'claude') {
+          response = await claudeApi(this.messages);
+        } else {
+          if (!this.selectedModel) {
+            throw new Error('Please select an Ollama model');
+          }
+          response = await ollamaApi(this.selectedModel, this.messages);
+        }
         
         // Add assistant's response to chat
         this.messages.push({
@@ -54,9 +109,17 @@ export default {
         });
       } catch (error) {
         console.error('Error:', error);
+        let errorMessage = 'Sorry, I encountered an error. Please try again.';
+        
+        if (error.response) {
+          errorMessage = `Error: ${error.response.data.error || error.response.statusText}`;
+        } else if (error.message) {
+          errorMessage = `Error: ${error.message}`;
+        }
+        
         this.messages.push({
           role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.'
+          content: errorMessage
         });
       } finally {
         this.isLoading = false;
@@ -74,6 +137,21 @@ export default {
 </script>
 
 <style scoped>
+.model-selection {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.provider-select,
+.model-select {
+  padding: 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background: white;
+  min-width: 120px;
+}
+
 .chat-container {
   display: flex;
   flex-direction: column;
