@@ -28,7 +28,7 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 Initial project description and walkthrough: https://chatgpt.com/share/67aa59b9-1400-800b-b1bd-7dbaf4f3fdfb
 
 ## Tasks in Cline
-###Create home page UI:
+### Create home page UI:
 - On the home page, I would like to have a simple chatbot interface. It should call an API for Claude and show the full conversation for each turn of the interaction. Basically a normal chatbot UI.
 
 ### Add Ollaman support
